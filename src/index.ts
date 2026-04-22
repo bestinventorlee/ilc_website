@@ -12,6 +12,9 @@ import {
 const app = express()
 const PORT = process.env.PORT || 3000
 
+// Nginx/ALB 같은 리버스 프록시 뒤에서 실제 클라이언트 IP를 신뢰
+app.set('trust proxy', 1)
+
 // 환경 변수 검증
 validateEnvironment()
 
