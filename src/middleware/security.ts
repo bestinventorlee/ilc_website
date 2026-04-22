@@ -71,6 +71,7 @@ export const validateEnvironment = (): void => {
   const requiredEnvVars = ['JWT_SECRET']
 
   if (process.env.NODE_ENV === 'production') {
+    requiredEnvVars.push('DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER')
     requiredEnvVars.forEach((varName) => {
       if (!process.env[varName]) {
         throw new Error(

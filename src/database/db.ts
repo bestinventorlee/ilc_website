@@ -1,71 +1,39 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { Pool, QueryResult, QueryResultRow } from 'pg'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// 데이터베이스 파일 경로
-const dbPath = path.join(__dirname, '../../data/users.json')
+const schemaPath = path.join(__dirname, './schema.sql')
 
-// Refresh Token 저장 파일 경로
-const refreshTokenPath = path.join(__dirname, '../../data/refresh_tokens.json')
+const pool = new Pool({
+  host: process.env.DB_HOST || '127.0.0.1',
+  port: Number(process.env.DB_PORT || 5432),
+  database: process.env.DB_NAME || 'ilc_db',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || '',
+  max: 10,
+  idleTimeoutMillis: 30000,
+})
 
-// 데이터베이스 초기화
-export const initDatabase = () => {
-  // data 디렉토리가 없으면 생성
-  const dataDir = path.dirname(dbPath)
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true })
-  }
-
-  // users.json 파일이 없으면 생성
-  if (!fs.existsSync(dbPath)) {
-    fs.writeFileSync(dbPath, JSON.stringify([], null, 2), 'utf-8')
-    console.log('✅ 사용자 데이터베이스 파일 생성 완료')
-  } else {
-    console.log('✅ 사용자 데이터베이스 파일 로드 완료')
-  }
-
-  // refresh_tokens.json 파일이 없으면 생성
-  if (!fs.existsSync(refreshTokenPath)) {
-    fs.writeFileSync(refreshTokenPath, JSON.stringify([], null, 2), 'utf-8')
-    console.log('✅ Refresh Token 데이터베이스 파일 생성 완료')
-  } else {
-    console.log('✅ Refresh Token 데이터베이스 파일 로드 완료')
-  }
+export const query = async <T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params: unknown[] = []
+): Promise<QueryResult<T>> => {
+  return pool.query<T>(text, params)
 }
 
-// 데이터베이스 파일 읽기
-export const readDatabase = (): any[] => {
-  try {
-    const data = fs.readFileSync(dbPath, 'utf-8')
-    return JSON.parse(data)
-  } catch (error) {
-    return []
-  }
+export const getPool = (): Pool => pool
+
+export const initDatabase = async (): Promise<void> => {
+  const schemaSql = fs.readFileSync(schemaPath, 'utf-8')
+  await pool.query(schemaSql)
+  console.log('✅ PostgreSQL 스키마 초기화 완료')
 }
 
-// 데이터베이스 파일 쓰기
-export const writeDatabase = (data: any[]): void => {
-  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf-8')
+export const closeDatabase = async (): Promise<void> => {
+  await pool.end()
 }
-
-// Refresh Token 데이터베이스 읽기
-export const readRefreshTokens = (): any[] => {
-  try {
-    const data = fs.readFileSync(refreshTokenPath, 'utf-8')
-    return JSON.parse(data)
-  } catch (error) {
-    return []
-  }
-}
-
-// Refresh Token 데이터베이스 쓰기
-export const writeRefreshTokens = (data: any[]): void => {
-  fs.writeFileSync(refreshTokenPath, JSON.stringify(data, null, 2), 'utf-8')
-}
-
-// 데이터베이스 경로 내보내기 (필요시)
-export default dbPath
 

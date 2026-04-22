@@ -26,6 +26,7 @@ export interface TokenPayload {
   userId: number
   email: string
   name: string
+  role: 'admin' | 'user'
 }
 
 /**
@@ -33,7 +34,7 @@ export interface TokenPayload {
  */
 export const generateAccessToken = (payload: TokenPayload): string => {
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+    expiresIn: ACCESS_TOKEN_EXPIRES_IN as jwt.SignOptions['expiresIn'],
   })
 }
 
@@ -50,7 +51,7 @@ export const generateRefreshToken = (): string => {
  */
 export const generateRefreshTokenJWT = (payload: TokenPayload): string => {
   return jwt.sign(payload, REFRESH_TOKEN_SECRET, {
-    expiresIn: REFRESH_TOKEN_EXPIRES_IN,
+    expiresIn: REFRESH_TOKEN_EXPIRES_IN as jwt.SignOptions['expiresIn'],
   })
 }
 

@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { initDatabase } from './database/db.js'
 import authRoutes from './routes/auth.js'
+import adminRoutes from './routes/admin.js'
 import {
   securityHeaders,
   validateEnvironment,
@@ -25,14 +26,16 @@ app.use(express.urlencoded({ extended: true }))
 // Rate Limiting (일반 API)
 app.use('/api', apiRateLimiter)
 
-// 데이터베이스 초기화
-initDatabase()
-
 // 라우트
 app.use('/api/auth', authRoutes)
+app.use('/api/admin', adminRoutes)
 
 // 헬스 체크
 app.get('/health', (req, res) => {
+  res.json({ status: 'ok', message: 'ILC 회원 포털 API 서버' })
+})
+
+app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'ILC 회원 포털 API 서버' })
 })
 
@@ -53,9 +56,18 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   })
 })
 
-// 서버 시작
-app.listen(PORT, () => {
-  console.log(`🚀 서버가 http://localhost:${PORT} 에서 실행 중입니다.`)
-  console.log(`📊 데이터베이스: ./server/data/ilc_members.db`)
-})
+const startServer = async () => {
+  try {
+    await initDatabase()
+    app.listen(PORT, () => {
+      console.log(`🚀 서버가 http://localhost:${PORT} 에서 실행 중입니다.`)
+      console.log('📊 데이터베이스: PostgreSQL')
+    })
+  } catch (error) {
+    console.error('❌ 서버 시작 실패:', error)
+    process.exit(1)
+  }
+}
+
+startServer()
 

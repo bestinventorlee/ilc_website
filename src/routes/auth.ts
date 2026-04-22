@@ -1,7 +1,7 @@
 import express from 'express'
-import { createUser, findUserByEmail, verifyPassword } from '../models/User.js'
+import { createUser, findUserByEmail, findUserById, updateLastLoginAt, verifyPassword } from '../models/User.js'
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.js'
-import { saveRefreshToken } from '../models/RefreshToken.js'
+import { deleteRefreshToken, findRefreshToken, saveRefreshToken } from '../models/RefreshToken.js'
 import { authRateLimiter } from '../middleware/security.js'
 
 const router = express.Router()
@@ -43,7 +43,7 @@ router.post('/signup', async (req, res) => {
     }
 
     // 이메일 중복 확인
-    const existingUser = findUserByEmail(email)
+    const existingUser = await findUserByEmail(email)
     if (existingUser) {
       return res.status(409).json({
         success: false,
@@ -59,13 +59,14 @@ router.post('/signup', async (req, res) => {
       userId: user.id,
       email: user.email,
       name: user.name,
+      role: user.role,
     })
 
     // Refresh Token 생성 (7일 만료)
     const refreshToken = generateRefreshToken()
     
     // Refresh Token 저장
-    saveRefreshToken(refreshToken, user.id, user.email)
+    await saveRefreshToken(refreshToken, user.id, user.email)
 
     res.status(201).json({
       success: true,
@@ -74,6 +75,7 @@ router.post('/signup', async (req, res) => {
         userId: user.id.toString(),
         email: user.email,
         name: user.name,
+        role: user.role,
         accessToken, // Access Token (15분 만료)
         refreshToken, // Refresh Token (7일 만료)
       },
@@ -103,8 +105,7 @@ router.post('/refresh', async (req, res) => {
     }
 
     // Refresh Token 검증
-    const { findRefreshToken, deleteRefreshToken } = await import('../models/RefreshToken.js')
-    const tokenData = findRefreshToken(refreshToken)
+    const tokenData = await findRefreshToken(refreshToken)
 
     if (!tokenData) {
       return res.status(401).json({
@@ -114,8 +115,7 @@ router.post('/refresh', async (req, res) => {
     }
 
     // 사용자 정보 가져오기
-    const { findUserById } = await import('../models/User.js')
-    const user = findUserById(tokenData.userId)
+    const user = await findUserById(tokenData.userId)
 
     if (!user) {
       return res.status(404).json({
@@ -129,6 +129,7 @@ router.post('/refresh', async (req, res) => {
       userId: user.id,
       email: user.email,
       name: user.name,
+      role: user.role,
     })
 
     res.json({
@@ -156,8 +157,7 @@ router.post('/logout', async (req, res) => {
     const { refreshToken } = req.body
 
     if (refreshToken) {
-      const { deleteRefreshToken } = await import('../models/RefreshToken.js')
-      deleteRefreshToken(refreshToken)
+      await deleteRefreshToken(refreshToken)
     }
 
     res.json({
@@ -190,7 +190,7 @@ router.post('/login', async (req, res) => {
     }
 
     // 사용자 찾기
-    const user = findUserByEmail(email)
+    const user = await findUserByEmail(email)
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -212,13 +212,15 @@ router.post('/login', async (req, res) => {
       userId: user.id,
       email: user.email,
       name: user.name,
+      role: user.role,
     })
 
     // Refresh Token 생성 (15일 만료)
     const refreshToken = generateRefreshToken()
     
     // Refresh Token 저장
-    saveRefreshToken(refreshToken, user.id, user.email)
+    await saveRefreshToken(refreshToken, user.id, user.email)
+    await updateLastLoginAt(user.id)
 
     res.json({
       success: true,
@@ -227,6 +229,7 @@ router.post('/login', async (req, res) => {
         userId: user.id.toString(),
         email: user.email,
         name: user.name,
+        role: user.role,
         accessToken, // Access Token (15분 만료)
         refreshToken, // Refresh Token (15일 만료)
       },

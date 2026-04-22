@@ -1,4 +1,4 @@
-import { readDatabase, writeDatabase } from '../database/db.js'
+import { query } from '../database/db.js'
 import bcrypt from 'bcryptjs'
 
 export interface User {
@@ -6,6 +6,8 @@ export interface User {
   name: string
   email: string
   password: string
+  role: 'admin' | 'user'
+  last_login_at: string | null
   created_at: string
   updated_at: string
 }
@@ -20,6 +22,8 @@ export interface UserWithoutPassword {
   id: number
   name: string
   email: string
+  role: 'admin' | 'user'
+  last_login_at: string | null
   created_at: string
   updated_at: string
 }
@@ -27,48 +31,60 @@ export interface UserWithoutPassword {
 /**
  * 이메일로 사용자 찾기
  */
-export const findUserByEmail = (email: string): User | undefined => {
-  const users = readDatabase()
-  return users.find((user) => user.email === email) as User | undefined
+export const findUserByEmail = async (email: string): Promise<User | undefined> => {
+  const result = await query<User>(
+    `SELECT id, name, email, password, role, last_login_at, created_at, updated_at
+     FROM users
+     WHERE email = $1`,
+    [email]
+  )
+  return result.rows[0]
 }
 
 /**
  * ID로 사용자 찾기
  */
-export const findUserById = (id: number): User | undefined => {
-  const users = readDatabase()
-  return users.find((user) => user.id === id) as User | undefined
+export const findUserById = async (id: number): Promise<User | undefined> => {
+  const result = await query<User>(
+    `SELECT id, name, email, password, role, last_login_at, created_at, updated_at
+     FROM users
+     WHERE id = $1`,
+    [id]
+  )
+  return result.rows[0]
+}
+
+export const listUsers = async (): Promise<UserWithoutPassword[]> => {
+  const result = await query<UserWithoutPassword>(
+    `SELECT id, name, email, role, last_login_at, created_at, updated_at
+     FROM users
+     ORDER BY created_at DESC`
+  )
+  return result.rows
+}
+
+export const updateLastLoginAt = async (id: number): Promise<void> => {
+  await query(
+    `UPDATE users
+     SET last_login_at = NOW(), updated_at = NOW()
+     WHERE id = $1`,
+    [id]
+  )
 }
 
 /**
  * 새 사용자 생성
  */
 export const createUser = async (data: CreateUserData): Promise<UserWithoutPassword> => {
-  // 비밀번호 해싱
   const hashedPassword = await bcrypt.hash(data.password, 10)
-
-  const users = readDatabase()
-  
-  // 새 ID 생성
-  const newId = users.length > 0 ? Math.max(...users.map((u) => u.id)) + 1 : 1
-  
-  const now = new Date().toISOString()
-  
-  const newUser: User = {
-    id: newId,
-    name: data.name,
-    email: data.email,
-    password: hashedPassword,
-    created_at: now,
-    updated_at: now,
-  }
-
-  users.push(newUser)
-  writeDatabase(users)
-
-  // 생성된 사용자 정보 반환 (비밀번호 제외)
-  const { password, ...userWithoutPassword } = newUser
-  return userWithoutPassword as UserWithoutPassword
+  const role = data.email === 'admin@ilc.com' || data.email.endsWith('@admin.ilc.com') ? 'admin' : 'user'
+  const result = await query<UserWithoutPassword>(
+    `INSERT INTO users (name, email, password, role)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, name, email, role, last_login_at, created_at, updated_at`,
+    [data.name, data.email, hashedPassword, role]
+  )
+  return result.rows[0]
 }
 
 /**

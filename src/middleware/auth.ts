@@ -9,6 +9,7 @@ declare global {
         userId: number
         email: string
         name: string
+        role: 'admin' | 'user'
       }
     }
   }
@@ -42,6 +43,7 @@ export const authenticateToken = (
       userId: payload.userId,
       email: payload.email,
       name: payload.name,
+      role: payload.role,
     }
 
     next()
