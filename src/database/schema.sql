@@ -94,3 +94,11 @@ CREATE TABLE IF NOT EXISTS contacts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_contacts_status ON contacts (status);
+
+CREATE TABLE IF NOT EXISTS site_contents (
+  key VARCHAR(120) PRIMARY KEY,
+  content JSONB NOT NULL,
+  updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

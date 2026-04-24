@@ -3,6 +3,7 @@ import cors from 'cors'
 import { initDatabase } from './database/db.js'
 import authRoutes from './routes/auth.js'
 import adminRoutes from './routes/admin.js'
+import contentRoutes from './routes/content.js'
 import {
   securityHeaders,
   validateEnvironment,
@@ -32,6 +33,7 @@ app.use('/api', apiRateLimiter)
 // 라우트
 app.use('/api/auth', authRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/content', contentRoutes)
 
 // 헬스 체크
 app.get('/health', (req, res) => {

@@ -77,6 +77,13 @@ export interface ContactRow {
   answered_at: string | null
 }
 
+export interface SiteContentRow {
+  key: string
+  content: unknown
+  updated_by: number | null
+  updated_at: string
+}
+
 export const getAdminStats = async (): Promise<{
   totalUsers: number
   totalMemberships: number
@@ -273,6 +280,34 @@ export const answerAdminContact = async (
      WHERE id = $1
      RETURNING id, name, email, phone, subject, message, user_id, submitted_at, status, answer, answered_at`,
     [id, answer]
+  )
+  return result.rows[0]
+}
+
+export const getSiteContent = async (key: string): Promise<SiteContentRow | undefined> => {
+  const result = await query<SiteContentRow>(
+    `SELECT key, content, updated_by, updated_at
+     FROM site_contents
+     WHERE key = $1`,
+    [key]
+  )
+  return result.rows[0]
+}
+
+export const upsertSiteContent = async (
+  key: string,
+  content: unknown,
+  updatedBy: number
+): Promise<SiteContentRow> => {
+  const result = await query<SiteContentRow>(
+    `INSERT INTO site_contents (key, content, updated_by)
+     VALUES ($1, $2::jsonb, $3)
+     ON CONFLICT (key) DO UPDATE
+     SET content = EXCLUDED.content,
+         updated_by = EXCLUDED.updated_by,
+         updated_at = NOW()
+     RETURNING key, content, updated_by, updated_at`,
+    [key, JSON.stringify(content), updatedBy]
   )
   return result.rows[0]
 }

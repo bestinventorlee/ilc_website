@@ -13,6 +13,8 @@ import {
   listAdminMemberships,
   listAdminPosts,
   listAdminUsers,
+  getSiteContent,
+  upsertSiteContent,
   updateAdminMembership,
   updateAdminPost,
 } from '../models/Admin.js'
@@ -355,6 +357,42 @@ router.post('/contacts/:id/answer', async (req, res) => {
   } catch (error) {
     console.error('문의 답변 오류:', error)
     res.status(500).json({ success: false, message: '문의 답변 중 오류가 발생했습니다.' })
+  }
+})
+
+router.get('/site-content/:key', async (req, res) => {
+  try {
+    const data = await getSiteContent(req.params.key)
+    res.json({
+      success: true,
+      message: '사이트 콘텐츠를 조회했습니다.',
+      data: data?.content ?? null,
+      updatedAt: data?.updated_at ?? null,
+    })
+  } catch (error) {
+    console.error('사이트 콘텐츠 조회 오류:', error)
+    res.status(500).json({ success: false, message: '사이트 콘텐츠 조회 중 오류가 발생했습니다.' })
+  }
+})
+
+router.put('/site-content/:key', async (req, res) => {
+  try {
+    const key = req.params.key
+    const content = req.body?.content
+    if (!content || typeof content !== 'object') {
+      res.status(400).json({ success: false, message: 'content 객체가 필요합니다.' })
+      return
+    }
+    const saved = await upsertSiteContent(key, content, req.user!.userId)
+    res.json({
+      success: true,
+      message: '사이트 콘텐츠가 저장되었습니다.',
+      data: saved.content,
+      updatedAt: saved.updated_at,
+    })
+  } catch (error) {
+    console.error('사이트 콘텐츠 저장 오류:', error)
+    res.status(500).json({ success: false, message: '사이트 콘텐츠 저장 중 오류가 발생했습니다.' })
   }
 })
 
