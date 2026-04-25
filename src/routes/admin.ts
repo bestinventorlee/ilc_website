@@ -13,6 +13,7 @@ import {
   listAdminContacts,
   listAdminLibraryItems,
   listAdminMemberships,
+  listAdminMembershipsByUser,
   listAdminMembershipTypes,
   listAdminPosts,
   listAdminUsers,
@@ -96,6 +97,38 @@ router.get('/memberships', async (req, res) => {
   } catch (error) {
     console.error('회원권 목록 조회 오류:', error)
     res.status(500).json({ success: false, message: '회원권 목록 조회 중 오류가 발생했습니다.' })
+  }
+})
+
+router.get('/users/:id/memberships', async (req, res) => {
+  try {
+    const userId = Number(req.params.id)
+    if (!Number.isFinite(userId)) {
+      res.status(400).json({ success: false, message: '잘못된 회원 ID입니다.' })
+      return
+    }
+    const memberships = await listAdminMembershipsByUser(userId)
+    res.json({
+      success: true,
+      message: '회원별 회원권 목록을 조회했습니다.',
+      data: memberships.map((membership) => ({
+        id: String(membership.id),
+        userId: String(membership.user_id),
+        membershipNumber: membership.membership_number,
+        membershipType: membership.membership_type,
+        joinDate: membership.join_date,
+        expiryDate: membership.expiry_date ?? undefined,
+        benefits: membership.benefits,
+        status: membership.status,
+        price: membership.price ?? undefined,
+        description: membership.description ?? undefined,
+        userName: membership.user_name,
+        userEmail: membership.user_email,
+      })),
+    })
+  } catch (error) {
+    console.error('회원별 회원권 목록 조회 오류:', error)
+    res.status(500).json({ success: false, message: '회원별 회원권 목록 조회 중 오류가 발생했습니다.' })
   }
 })
 
@@ -187,6 +220,7 @@ router.get('/membership-types', async (_req, res) => {
       data: rows.map((row) => ({
         id: String(row.id),
         name: row.name,
+        membershipNumberFormat: row.number_format,
         defaultDurationDays: row.default_duration_days ?? undefined,
         benefits: row.benefits,
         price: row.price ?? undefined,
@@ -203,9 +237,13 @@ router.get('/membership-types', async (_req, res) => {
 
 router.post('/membership-types', async (req, res) => {
   try {
-    const { name, defaultDurationDays, benefits, price, description } = req.body
+    const { name, membershipNumberFormat, defaultDurationDays, benefits, price, description } = req.body
     if (!name || typeof name !== 'string' || !name.trim()) {
       res.status(400).json({ success: false, message: '종류 이름이 필요합니다.' })
+      return
+    }
+    if (!membershipNumberFormat || typeof membershipNumberFormat !== 'string' || !membershipNumberFormat.trim()) {
+      res.status(400).json({ success: false, message: '회원권 번호 형식이 필요합니다.' })
       return
     }
     const benefitsList: string[] = Array.isArray(benefits)
@@ -218,6 +256,7 @@ router.post('/membership-types', async (req, res) => {
         : []
     const row = await createAdminMembershipType({
       name,
+      membershipNumberFormat,
       defaultDurationDays:
         defaultDurationDays === '' || defaultDurationDays === undefined || defaultDurationDays === null
           ? null
@@ -232,6 +271,7 @@ router.post('/membership-types', async (req, res) => {
       data: {
         id: String(row.id),
         name: row.name,
+        membershipNumberFormat: row.number_format,
         defaultDurationDays: row.default_duration_days ?? undefined,
         benefits: row.benefits,
         price: row.price ?? undefined,
@@ -254,9 +294,13 @@ router.post('/membership-types', async (req, res) => {
 router.put('/membership-types/:id', async (req, res) => {
   try {
     const id = Number(req.params.id)
-    const { name, defaultDurationDays, benefits, price, description } = req.body
+    const { name, membershipNumberFormat, defaultDurationDays, benefits, price, description } = req.body
     if (!name || typeof name !== 'string' || !name.trim()) {
       res.status(400).json({ success: false, message: '종류 이름이 필요합니다.' })
+      return
+    }
+    if (!membershipNumberFormat || typeof membershipNumberFormat !== 'string' || !membershipNumberFormat.trim()) {
+      res.status(400).json({ success: false, message: '회원권 번호 형식이 필요합니다.' })
       return
     }
     const benefitsList: string[] = Array.isArray(benefits)
@@ -269,6 +313,7 @@ router.put('/membership-types/:id', async (req, res) => {
         : []
     const updated = await updateAdminMembershipType(id, {
       name,
+      membershipNumberFormat,
       defaultDurationDays:
         defaultDurationDays === '' || defaultDurationDays === undefined || defaultDurationDays === null
           ? null
@@ -287,6 +332,7 @@ router.put('/membership-types/:id', async (req, res) => {
       data: {
         id: String(updated.id),
         name: updated.name,
+        membershipNumberFormat: updated.number_format,
         defaultDurationDays: updated.default_duration_days ?? undefined,
         benefits: updated.benefits,
         price: updated.price ?? undefined,

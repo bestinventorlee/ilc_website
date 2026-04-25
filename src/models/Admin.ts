@@ -80,6 +80,7 @@ export interface ContactRow {
 export interface MembershipTypeRow {
   id: number
   name: string
+  number_format: string
   default_duration_days: number | null
   benefits: string[]
   price: number | null
@@ -151,6 +152,30 @@ export const listAdminMemberships = async (): Promise<MembershipRow[]> => {
   return result.rows
 }
 
+export const listAdminMembershipsByUser = async (userId: number): Promise<MembershipRow[]> => {
+  const result = await query<MembershipRow>(
+    `SELECT
+      m.id,
+      m.user_id,
+      m.membership_number,
+      m.membership_type,
+      m.join_date::text,
+      m.expiry_date::text,
+      m.benefits,
+      m.status,
+      m.price,
+      m.description,
+      u.name AS user_name,
+      u.email AS user_email
+    FROM memberships m
+    JOIN users u ON u.id = m.user_id
+    WHERE m.user_id = $1
+    ORDER BY m.created_at DESC`,
+    [userId]
+  )
+  return result.rows
+}
+
 export const createAdminMembership = async (data: {
   userId: number
   membershipType: string
@@ -164,7 +189,13 @@ export const createAdminMembership = async (data: {
   const numberResult = await query<{ next_number: number }>(
     `SELECT COALESCE(MAX(id), 0) + 1 AS next_number FROM memberships`
   )
-  const membershipNumber = `MEM-${new Date().getFullYear()}-${String(numberResult.rows[0].next_number).padStart(3, '0')}`
+  const nextNumber = numberResult.rows[0].next_number
+  const typeResult = await query<{ number_format: string }>(
+    `SELECT number_format FROM membership_types WHERE name = $1`,
+    [data.membershipType]
+  )
+  const numberFormat = typeResult.rows[0]?.number_format || 'MEM-{YYYY}-{SEQ3}'
+  const membershipNumber = formatMembershipNumber(numberFormat, nextNumber)
 
   const result = await query<MembershipRow>(
     `INSERT INTO memberships
@@ -218,7 +249,7 @@ export const deleteAdminMembership = async (id: number): Promise<void> => {
 
 export const listAdminMembershipTypes = async (): Promise<MembershipTypeRow[]> => {
   const result = await query<MembershipTypeRow>(
-    `SELECT id, name, default_duration_days, benefits, price, description, created_at::text, updated_at::text
+    `SELECT id, name, number_format, default_duration_days, benefits, price, description, created_at::text, updated_at::text
      FROM membership_types
      ORDER BY name ASC`
   )
@@ -227,17 +258,19 @@ export const listAdminMembershipTypes = async (): Promise<MembershipTypeRow[]> =
 
 export const createAdminMembershipType = async (data: {
   name: string
+  membershipNumberFormat: string
   defaultDurationDays?: number | null
   benefits: string[]
   price?: number | null
   description?: string | null
 }): Promise<MembershipTypeRow> => {
   const result = await query<MembershipTypeRow>(
-    `INSERT INTO membership_types (name, default_duration_days, benefits, price, description)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, name, default_duration_days, benefits, price, description, created_at::text, updated_at::text`,
+    `INSERT INTO membership_types (name, number_format, default_duration_days, benefits, price, description)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, name, number_format, default_duration_days, benefits, price, description, created_at::text, updated_at::text`,
     [
       data.name.trim(),
+      data.membershipNumberFormat.trim(),
       data.defaultDurationDays ?? null,
       data.benefits,
       data.price ?? null,
@@ -251,6 +284,7 @@ export const updateAdminMembershipType = async (
   id: number,
   data: {
     name: string
+    membershipNumberFormat: string
     defaultDurationDays?: number | null
     benefits: string[]
     price?: number | null
@@ -259,12 +293,13 @@ export const updateAdminMembershipType = async (
 ): Promise<MembershipTypeRow | undefined> => {
   const result = await query<MembershipTypeRow>(
     `UPDATE membership_types
-     SET name = $2, default_duration_days = $3, benefits = $4, price = $5, description = $6, updated_at = NOW()
+     SET name = $2, number_format = $3, default_duration_days = $4, benefits = $5, price = $6, description = $7, updated_at = NOW()
      WHERE id = $1
-     RETURNING id, name, default_duration_days, benefits, price, description, created_at::text, updated_at::text`,
+     RETURNING id, name, number_format, default_duration_days, benefits, price, description, created_at::text, updated_at::text`,
     [
       id,
       data.name.trim(),
+      data.membershipNumberFormat.trim(),
       data.defaultDurationDays ?? null,
       data.benefits,
       data.price ?? null,
@@ -272,6 +307,25 @@ export const updateAdminMembershipType = async (
     ]
   )
   return result.rows[0]
+}
+
+const formatMembershipNumber = (format: string, seq: number): string => {
+  const now = new Date()
+  const yyyy = String(now.getFullYear())
+  const yy = yyyy.slice(-2)
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  const seqRaw = String(seq)
+
+  return format
+    .replace(/\{YYYY\}/g, yyyy)
+    .replace(/\{YY\}/g, yy)
+    .replace(/\{MM\}/g, mm)
+    .replace(/\{DD\}/g, dd)
+    .replace(/\{SEQ5\}/g, seqRaw.padStart(5, '0'))
+    .replace(/\{SEQ4\}/g, seqRaw.padStart(4, '0'))
+    .replace(/\{SEQ3\}/g, seqRaw.padStart(3, '0'))
+    .replace(/\{SEQ\}/g, seqRaw)
 }
 
 export const deleteAdminMembershipType = async (

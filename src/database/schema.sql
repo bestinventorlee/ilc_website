@@ -43,6 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_memberships_status ON memberships (status);
 CREATE TABLE IF NOT EXISTS membership_types (
   id BIGSERIAL PRIMARY KEY,
   name VARCHAR(200) NOT NULL UNIQUE,
+  number_format VARCHAR(120) NOT NULL DEFAULT 'MEM-{YYYY}-{SEQ3}',
   default_duration_days INTEGER,
   benefits TEXT[] NOT NULL DEFAULT '{}',
   price INTEGER,
@@ -50,6 +51,9 @@ CREATE TABLE IF NOT EXISTS membership_types (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE membership_types
+  ADD COLUMN IF NOT EXISTS number_format VARCHAR(120) NOT NULL DEFAULT 'MEM-{YYYY}-{SEQ3}';
 
 CREATE INDEX IF NOT EXISTS idx_membership_types_name ON membership_types (name);
 
