@@ -24,7 +24,8 @@ const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '15d' /
 
 export interface TokenPayload {
   userId: number
-  email: string
+  username: string
+  email?: string
   name: string
   role: 'admin' | 'user'
 }

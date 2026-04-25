@@ -4,7 +4,8 @@ import bcrypt from 'bcryptjs'
 export interface User {
   id: number
   name: string
-  email: string
+  username: string
+  email: string | null
   password: string
   role: 'admin' | 'user'
   last_login_at: string | null
@@ -14,14 +15,16 @@ export interface User {
 
 export interface CreateUserData {
   name: string
-  email: string
+  username: string
+  email?: string
   password: string
 }
 
 export interface UserWithoutPassword {
   id: number
   name: string
-  email: string
+  username: string
+  email: string | null
   role: 'admin' | 'user'
   last_login_at: string | null
   created_at: string
@@ -33,7 +36,7 @@ export interface UserWithoutPassword {
  */
 export const findUserByEmail = async (email: string): Promise<User | undefined> => {
   const result = await query<User>(
-    `SELECT id, name, email, password, role, last_login_at, created_at, updated_at
+    `SELECT id, name, username, email, password, role, last_login_at, created_at, updated_at
      FROM users
      WHERE email = $1`,
     [email]
@@ -46,7 +49,7 @@ export const findUserByEmail = async (email: string): Promise<User | undefined> 
  */
 export const findUserById = async (id: number): Promise<User | undefined> => {
   const result = await query<User>(
-    `SELECT id, name, email, password, role, last_login_at, created_at, updated_at
+    `SELECT id, name, username, email, password, role, last_login_at, created_at, updated_at
      FROM users
      WHERE id = $1`,
     [id]
@@ -56,11 +59,35 @@ export const findUserById = async (id: number): Promise<User | undefined> => {
 
 export const listUsers = async (): Promise<UserWithoutPassword[]> => {
   const result = await query<UserWithoutPassword>(
-    `SELECT id, name, email, role, last_login_at, created_at, updated_at
+    `SELECT id, name, username, email, role, last_login_at, created_at, updated_at
      FROM users
      ORDER BY created_at DESC`
   )
   return result.rows
+}
+
+export const findUserByUsername = async (username: string): Promise<User | undefined> => {
+  const result = await query<User>(
+    `SELECT id, name, username, email, password, role, last_login_at, created_at, updated_at
+     FROM users
+     WHERE username = $1`,
+    [username]
+  )
+  return result.rows[0]
+}
+
+export const findUserByNameAndEmail = async (
+  name: string,
+  email: string
+): Promise<User | undefined> => {
+  const result = await query<User>(
+    `SELECT id, name, username, email, password, role, last_login_at, created_at, updated_at
+     FROM users
+     WHERE LOWER(name) = LOWER($1) AND LOWER(email) = LOWER($2)
+     LIMIT 1`,
+    [name, email]
+  )
+  return result.rows[0]
 }
 
 export const updateLastLoginAt = async (id: number): Promise<void> => {
@@ -77,12 +104,14 @@ export const updateLastLoginAt = async (id: number): Promise<void> => {
  */
 export const createUser = async (data: CreateUserData): Promise<UserWithoutPassword> => {
   const hashedPassword = await bcrypt.hash(data.password, 10)
-  const role = data.email === 'admin@ilc.com' || data.email.endsWith('@admin.ilc.com') ? 'admin' : 'user'
+  const email = data.email?.trim() || null
+  const role =
+    email && (email === 'admin@ilc.com' || email.endsWith('@admin.ilc.com')) ? 'admin' : 'user'
   const result = await query<UserWithoutPassword>(
-    `INSERT INTO users (name, email, password, role)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id, name, email, role, last_login_at, created_at, updated_at`,
-    [data.name, data.email, hashedPassword, role]
+    `INSERT INTO users (name, username, email, password, role)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, name, username, email, role, last_login_at, created_at, updated_at`,
+    [data.name, data.username, email, hashedPassword, role]
   )
   return result.rows[0]
 }

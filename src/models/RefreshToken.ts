@@ -3,7 +3,7 @@ import { query } from '../database/db.js'
 export interface RefreshTokenData {
   token: string
   userId: number
-  email: string
+  email: string | null
   createdAt: string
   expiresAt: string
 }
@@ -11,7 +11,11 @@ export interface RefreshTokenData {
 /**
  * Refresh Token 저장
  */
-export const saveRefreshToken = async (token: string, userId: number, email: string): Promise<void> => {
+export const saveRefreshToken = async (
+  token: string,
+  userId: number,
+  email: string | null
+): Promise<void> => {
   const now = new Date()
   const expiresAt = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000) // 15일 후
   await query(
@@ -42,7 +46,7 @@ export const findRefreshToken = async (token: string): Promise<RefreshTokenData 
   return {
     token: row.token,
     userId: row.user_id,
-    email: row.email,
+    email: row.email || null,
     createdAt: row.created_at,
     expiresAt: row.expires_at,
   }

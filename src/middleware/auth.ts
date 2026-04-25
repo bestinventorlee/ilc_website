@@ -7,7 +7,8 @@ declare global {
     interface Request {
       user?: {
         userId: number
-        email: string
+        username: string
+        email?: string
         name: string
         role: 'admin' | 'user'
       }
@@ -41,6 +42,7 @@ export const authenticateToken = (
     // 요청 객체에 사용자 정보 추가
     req.user = {
       userId: payload.userId,
+      username: payload.username,
       email: payload.email,
       name: payload.name,
       role: payload.role,

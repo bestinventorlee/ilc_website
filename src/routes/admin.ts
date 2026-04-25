@@ -35,7 +35,8 @@ router.get('/stats', async (req, res) => {
     const recentUsers = (await listAdminUsers()).slice(0, 5).map((user) => ({
       id: String(user.id),
       name: user.name,
-      email: user.email,
+      username: user.username,
+      email: user.email || '',
       role: user.role,
       createdAt: user.created_at,
       lastLoginAt: user.last_login_at ?? undefined,
@@ -61,7 +62,8 @@ router.get('/users', async (req, res) => {
       data: users.map((user) => ({
         id: String(user.id),
         name: user.name,
-        email: user.email,
+        username: user.username,
+        email: user.email || '',
         role: user.role,
         createdAt: user.created_at,
         lastLoginAt: user.last_login_at ?? undefined,

@@ -37,6 +37,14 @@ const readJson = <T>(filePath: string): T[] => {
   return JSON.parse(raw) as T[]
 }
 
+const toUsername = (email: string, id: number): string => {
+  const base = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').toLowerCase()
+  if (!base || base.length < 4) {
+    return `user${id}`
+  }
+  return base.slice(0, 16) + id.toString().slice(-4)
+}
+
 const migrate = async () => {
   try {
     await initDatabase()
@@ -51,15 +59,25 @@ const migrate = async () => {
     for (const user of users) {
       const role = user.email === 'admin@ilc.com' || user.email.endsWith('@admin.ilc.com') ? 'admin' : 'user'
       await query(
-        `INSERT INTO users (id, name, email, password, role, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO users (id, name, username, email, password, role, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (id) DO UPDATE
          SET name = EXCLUDED.name,
+             username = EXCLUDED.username,
              email = EXCLUDED.email,
              password = EXCLUDED.password,
              role = EXCLUDED.role,
              updated_at = EXCLUDED.updated_at`,
-        [user.id, user.name, user.email, user.password, role, user.created_at, user.updated_at]
+        [
+          user.id,
+          user.name,
+          toUsername(user.email, user.id),
+          user.email,
+          user.password,
+          role,
+          user.created_at,
+          user.updated_at,
+        ]
       )
     }
 

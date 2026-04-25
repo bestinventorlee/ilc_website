@@ -3,7 +3,8 @@ import { query } from '../database/db.js'
 export interface AdminUserRow {
   id: number
   name: string
-  email: string
+  username: string
+  email: string | null
   role: 'admin' | 'user'
   created_at: string
   last_login_at: string | null
@@ -123,7 +124,7 @@ export const getAdminStats = async (): Promise<{
 
 export const listAdminUsers = async (): Promise<AdminUserRow[]> => {
   const result = await query<AdminUserRow>(
-    `SELECT id, name, email, role, created_at, last_login_at
+    `SELECT id, name, username, email, role, created_at, last_login_at
      FROM users
      ORDER BY created_at DESC`
   )
