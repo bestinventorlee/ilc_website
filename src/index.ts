@@ -4,6 +4,8 @@ import { initDatabase } from './database/db.js'
 import authRoutes from './routes/auth.js'
 import adminRoutes from './routes/admin.js'
 import contentRoutes from './routes/content.js'
+import communityRoutes from './routes/community.js'
+import membershipRoutes from './routes/memberships.js'
 import {
   securityHeaders,
   validateEnvironment,
@@ -34,6 +36,8 @@ app.use('/api', apiRateLimiter)
 app.use('/api/auth', authRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/content', contentRoutes)
+app.use('/api/community', communityRoutes)
+app.use('/api/memberships', membershipRoutes)
 
 // 헬스 체크
 app.get('/health', (req, res) => {
