@@ -40,6 +40,19 @@ CREATE TABLE IF NOT EXISTS memberships (
 CREATE INDEX IF NOT EXISTS idx_memberships_user_id ON memberships (user_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_status ON memberships (status);
 
+CREATE TABLE IF NOT EXISTS membership_types (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(200) NOT NULL UNIQUE,
+  default_duration_days INTEGER,
+  benefits TEXT[] NOT NULL DEFAULT '{}',
+  price INTEGER,
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_membership_types_name ON membership_types (name);
+
 CREATE TABLE IF NOT EXISTS posts (
   id BIGSERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,

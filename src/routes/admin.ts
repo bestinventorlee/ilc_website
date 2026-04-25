@@ -4,18 +4,22 @@ import { requireAdmin } from '../middleware/admin.js'
 import {
   answerAdminContact,
   createAdminMembership,
+  createAdminMembershipType,
   createAdminNotice,
   deleteAdminMembership,
+  deleteAdminMembershipType,
   deleteAdminPost,
   getAdminStats,
   listAdminContacts,
   listAdminLibraryItems,
   listAdminMemberships,
+  listAdminMembershipTypes,
   listAdminPosts,
   listAdminUsers,
   getSiteContent,
   upsertSiteContent,
   updateAdminMembership,
+  updateAdminMembershipType,
   updateAdminPost,
 } from '../models/Admin.js'
 
@@ -171,6 +175,156 @@ router.delete('/memberships/:id', async (req, res) => {
   } catch (error) {
     console.error('회원권 삭제 오류:', error)
     res.status(500).json({ success: false, message: '회원권 삭제 중 오류가 발생했습니다.' })
+  }
+})
+
+router.get('/membership-types', async (_req, res) => {
+  try {
+    const rows = await listAdminMembershipTypes()
+    res.json({
+      success: true,
+      message: '회원권 종류 목록을 조회했습니다.',
+      data: rows.map((row) => ({
+        id: String(row.id),
+        name: row.name,
+        defaultDurationDays: row.default_duration_days ?? undefined,
+        benefits: row.benefits,
+        price: row.price ?? undefined,
+        description: row.description ?? undefined,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      })),
+    })
+  } catch (error) {
+    console.error('회원권 종류 목록 조회 오류:', error)
+    res.status(500).json({ success: false, message: '회원권 종류 목록 조회 중 오류가 발생했습니다.' })
+  }
+})
+
+router.post('/membership-types', async (req, res) => {
+  try {
+    const { name, defaultDurationDays, benefits, price, description } = req.body
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ success: false, message: '종류 이름이 필요합니다.' })
+      return
+    }
+    const benefitsList: string[] = Array.isArray(benefits)
+      ? benefits.map((b: unknown) => String(b).trim()).filter(Boolean)
+      : typeof benefits === 'string'
+        ? benefits
+            .split('\n')
+            .map((b: string) => b.trim())
+            .filter(Boolean)
+        : []
+    const row = await createAdminMembershipType({
+      name,
+      defaultDurationDays:
+        defaultDurationDays === '' || defaultDurationDays === undefined || defaultDurationDays === null
+          ? null
+          : Number(defaultDurationDays),
+      benefits: benefitsList,
+      price: price === '' || price === undefined || price === null ? null : Number(price),
+      description,
+    })
+    res.status(201).json({
+      success: true,
+      message: '회원권 종류가 등록되었습니다.',
+      data: {
+        id: String(row.id),
+        name: row.name,
+        defaultDurationDays: row.default_duration_days ?? undefined,
+        benefits: row.benefits,
+        price: row.price ?? undefined,
+        description: row.description ?? undefined,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      },
+    })
+  } catch (error: unknown) {
+    console.error('회원권 종류 등록 오류:', error)
+    const err = error as { code?: string }
+    if (err.code === '23505') {
+      res.status(409).json({ success: false, message: '이미 같은 이름의 회원권 종류가 있습니다.' })
+      return
+    }
+    res.status(500).json({ success: false, message: '회원권 종류 등록 중 오류가 발생했습니다.' })
+  }
+})
+
+router.put('/membership-types/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const { name, defaultDurationDays, benefits, price, description } = req.body
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ success: false, message: '종류 이름이 필요합니다.' })
+      return
+    }
+    const benefitsList: string[] = Array.isArray(benefits)
+      ? benefits.map((b: unknown) => String(b).trim()).filter(Boolean)
+      : typeof benefits === 'string'
+        ? benefits
+            .split('\n')
+            .map((b: string) => b.trim())
+            .filter(Boolean)
+        : []
+    const updated = await updateAdminMembershipType(id, {
+      name,
+      defaultDurationDays:
+        defaultDurationDays === '' || defaultDurationDays === undefined || defaultDurationDays === null
+          ? null
+          : Number(defaultDurationDays),
+      benefits: benefitsList,
+      price: price === '' || price === undefined || price === null ? null : Number(price),
+      description,
+    })
+    if (!updated) {
+      res.status(404).json({ success: false, message: '회원권 종류를 찾을 수 없습니다.' })
+      return
+    }
+    res.json({
+      success: true,
+      message: '회원권 종류가 수정되었습니다.',
+      data: {
+        id: String(updated.id),
+        name: updated.name,
+        defaultDurationDays: updated.default_duration_days ?? undefined,
+        benefits: updated.benefits,
+        price: updated.price ?? undefined,
+        description: updated.description ?? undefined,
+        createdAt: updated.created_at,
+        updatedAt: updated.updated_at,
+      },
+    })
+  } catch (error: unknown) {
+    console.error('회원권 종류 수정 오류:', error)
+    const err = error as { code?: string }
+    if (err.code === '23505') {
+      res.status(409).json({ success: false, message: '이미 같은 이름의 회원권 종류가 있습니다.' })
+      return
+    }
+    res.status(500).json({ success: false, message: '회원권 종류 수정 중 오류가 발생했습니다.' })
+  }
+})
+
+router.delete('/membership-types/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const result = await deleteAdminMembershipType(id)
+    if (result === 'not_found') {
+      res.status(404).json({ success: false, message: '회원권 종류를 찾을 수 없습니다.' })
+      return
+    }
+    if (typeof result === 'object' && result.blocked) {
+      res.status(409).json({
+        success: false,
+        message: `이 종류로 발급된 회원권이 ${result.membershipCount}건 있어 삭제할 수 없습니다.`,
+      })
+      return
+    }
+    res.json({ success: true, message: '회원권 종류가 삭제되었습니다.' })
+  } catch (error) {
+    console.error('회원권 종류 삭제 오류:', error)
+    res.status(500).json({ success: false, message: '회원권 종류 삭제 중 오류가 발생했습니다.' })
   }
 })
 

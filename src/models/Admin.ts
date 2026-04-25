@@ -77,6 +77,17 @@ export interface ContactRow {
   answered_at: string | null
 }
 
+export interface MembershipTypeRow {
+  id: number
+  name: string
+  default_duration_days: number | null
+  benefits: string[]
+  price: number | null
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface SiteContentRow {
   key: string
   content: unknown
@@ -203,6 +214,84 @@ export const updateAdminMembership = async (
 
 export const deleteAdminMembership = async (id: number): Promise<void> => {
   await query(`DELETE FROM memberships WHERE id = $1`, [id])
+}
+
+export const listAdminMembershipTypes = async (): Promise<MembershipTypeRow[]> => {
+  const result = await query<MembershipTypeRow>(
+    `SELECT id, name, default_duration_days, benefits, price, description, created_at::text, updated_at::text
+     FROM membership_types
+     ORDER BY name ASC`
+  )
+  return result.rows
+}
+
+export const createAdminMembershipType = async (data: {
+  name: string
+  defaultDurationDays?: number | null
+  benefits: string[]
+  price?: number | null
+  description?: string | null
+}): Promise<MembershipTypeRow> => {
+  const result = await query<MembershipTypeRow>(
+    `INSERT INTO membership_types (name, default_duration_days, benefits, price, description)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, name, default_duration_days, benefits, price, description, created_at::text, updated_at::text`,
+    [
+      data.name.trim(),
+      data.defaultDurationDays ?? null,
+      data.benefits,
+      data.price ?? null,
+      data.description?.trim() ? data.description.trim() : null,
+    ]
+  )
+  return result.rows[0]
+}
+
+export const updateAdminMembershipType = async (
+  id: number,
+  data: {
+    name: string
+    defaultDurationDays?: number | null
+    benefits: string[]
+    price?: number | null
+    description?: string | null
+  }
+): Promise<MembershipTypeRow | undefined> => {
+  const result = await query<MembershipTypeRow>(
+    `UPDATE membership_types
+     SET name = $2, default_duration_days = $3, benefits = $4, price = $5, description = $6, updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, name, default_duration_days, benefits, price, description, created_at::text, updated_at::text`,
+    [
+      id,
+      data.name.trim(),
+      data.defaultDurationDays ?? null,
+      data.benefits,
+      data.price ?? null,
+      data.description?.trim() ? data.description.trim() : null,
+    ]
+  )
+  return result.rows[0]
+}
+
+export const deleteAdminMembershipType = async (
+  id: number
+): Promise<'deleted' | 'not_found' | { blocked: true; membershipCount: number }> => {
+  const nameResult = await query<{ name: string }>(`SELECT name FROM membership_types WHERE id = $1`, [id])
+  if (nameResult.rows.length === 0) {
+    return 'not_found'
+  }
+  const name = nameResult.rows[0].name
+  const countResult = await query<{ c: string }>(
+    `SELECT COUNT(*)::text AS c FROM memberships WHERE membership_type = $1`,
+    [name]
+  )
+  const membershipCount = Number(countResult.rows[0].c)
+  if (membershipCount > 0) {
+    return { blocked: true, membershipCount }
+  }
+  await query(`DELETE FROM membership_types WHERE id = $1`, [id])
+  return 'deleted'
 }
 
 export const listAdminPosts = async (): Promise<PostRow[]> => {

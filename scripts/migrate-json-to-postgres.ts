@@ -79,16 +79,6 @@ const migrate = async () => {
     await query(
       `SELECT setval('users_id_seq', COALESCE((SELECT MAX(id) FROM users), 1), true)`
     )
-    await query(
-      `SELECT setval('memberships_id_seq', COALESCE((SELECT MAX(id) FROM memberships), 1), true)`
-    )
-    await query(`SELECT setval('posts_id_seq', COALESCE((SELECT MAX(id) FROM posts), 1), true)`)
-    await query(
-      `SELECT setval('library_items_id_seq', COALESCE((SELECT MAX(id) FROM library_items), 1), true)`
-    )
-    await query(
-      `SELECT setval('contacts_id_seq', COALESCE((SELECT MAX(id) FROM contacts), 1), true)`
-    )
 
     await query('COMMIT')
     console.log('✅ JSON -> PostgreSQL 마이그레이션 완료')
