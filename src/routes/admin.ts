@@ -1,4 +1,7 @@
 import express from 'express'
+import fs from 'node:fs'
+import path from 'node:path'
+import multer from 'multer'
 import { authenticateToken } from '../middleware/auth.js'
 import { requireAdmin } from '../middleware/admin.js'
 import {
@@ -28,9 +31,47 @@ import {
 } from '../models/Admin.js'
 
 const router = express.Router()
+const uploadDir = path.resolve(process.cwd(), 'uploads', 'library')
+fs.mkdirSync(uploadDir, { recursive: true })
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || ''
+    const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9-_]/g, '_').slice(0, 60) || 'file'
+    cb(null, `${Date.now()}-${base}${ext.toLowerCase()}`)
+  },
+})
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+})
 
 router.use(authenticateToken)
 router.use(requireAdmin)
+
+router.post('/library/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ success: false, message: '업로드할 파일이 없습니다.' })
+      return
+    }
+    const ext = path.extname(req.file.originalname).replace('.', '').toLowerCase() || 'bin'
+    res.status(201).json({
+      success: true,
+      message: '파일 업로드가 완료되었습니다.',
+      data: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        fileType: ext,
+        fileSize: req.file.size,
+        downloadUrl: `/api/files/library/${req.file.filename}`,
+      },
+    })
+  } catch (error) {
+    console.error('파일 업로드 오류:', error)
+    res.status(500).json({ success: false, message: '파일 업로드 중 오류가 발생했습니다.' })
+  }
+})
 
 router.get('/stats', async (req, res) => {
   try {

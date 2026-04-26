@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import path from 'node:path'
 import { initDatabase } from './database/db.js'
 import authRoutes from './routes/auth.js'
 import adminRoutes from './routes/admin.js'
@@ -29,6 +30,7 @@ app.use(securityHeaders)
 app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+app.use('/api/files', express.static(path.resolve(process.cwd(), 'uploads')))
 
 // Rate Limiting (일반 API)
 app.use('/api', apiRateLimiter)
