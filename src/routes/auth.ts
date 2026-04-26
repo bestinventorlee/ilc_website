@@ -308,7 +308,7 @@ router.post('/login', async (req, res) => {
       })
     }
 
-    // 사용자 찾기
+    // 사용자 찾기 (ID(username) 전용 로그인)
     const user = await findUserByUsername(loginValue)
     if (!user) {
       return res.status(401).json({

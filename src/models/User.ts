@@ -38,7 +38,7 @@ export const findUserByEmail = async (email: string): Promise<User | undefined> 
   const result = await query<User>(
     `SELECT id, name, username, email, password, role, last_login_at, created_at, updated_at
      FROM users
-     WHERE email = $1`,
+     WHERE LOWER(email) = LOWER($1)`,
     [email]
   )
   return result.rows[0]

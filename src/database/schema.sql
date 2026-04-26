@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users (created_at DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON users (username);
 
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS username VARCHAR(50);
@@ -23,19 +22,24 @@ WHERE username IS NULL OR username = '';
 ALTER TABLE users
   ALTER COLUMN username SET NOT NULL;
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON users (username);
+
 ALTER TABLE users
   ALTER COLUMN email DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
   token VARCHAR(255) PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  email VARCHAR(255) NOT NULL,
+  email VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens (user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens (expires_at);
+
+ALTER TABLE refresh_tokens
+  ALTER COLUMN email DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS memberships (
   id BIGSERIAL PRIMARY KEY,

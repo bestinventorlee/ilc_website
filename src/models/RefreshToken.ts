@@ -32,7 +32,7 @@ export const findRefreshToken = async (token: string): Promise<RefreshTokenData 
   const result = await query<{
     token: string
     user_id: number
-    email: string
+    email: string | null
     created_at: string
     expires_at: string
   }>(

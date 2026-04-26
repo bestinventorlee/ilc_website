@@ -36,11 +36,17 @@ export const securityHeaders = (
 
 /**
  * 인증 관련 Rate Limiting
- * 15분에 최대 5회 시도
+ * 기본값: 15분에 최대 5회 시도
+ * 환경변수로 테스트 시 완화/비활성화 가능
  */
+const AUTH_RATE_LIMIT_WINDOW_MS = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000)
+const AUTH_RATE_LIMIT_MAX = Number(process.env.AUTH_RATE_LIMIT_MAX || 5)
+const DISABLE_AUTH_RATE_LIMIT = String(process.env.DISABLE_AUTH_RATE_LIMIT || '').toLowerCase() === 'true'
+
 export const authRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15분
-  max: 5, // 최대 5회
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: AUTH_RATE_LIMIT_MAX,
+  skip: () => DISABLE_AUTH_RATE_LIMIT,
   message: {
     success: false,
     message: '너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요.',
