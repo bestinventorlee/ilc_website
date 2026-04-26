@@ -6,6 +6,7 @@ import adminRoutes from './routes/admin.js'
 import contentRoutes from './routes/content.js'
 import communityRoutes from './routes/community.js'
 import membershipRoutes from './routes/memberships.js'
+import libraryRoutes from './routes/library.js'
 import {
   securityHeaders,
   validateEnvironment,
@@ -38,6 +39,7 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/content', contentRoutes)
 app.use('/api/community', communityRoutes)
 app.use('/api/memberships', membershipRoutes)
+app.use('/api/library', libraryRoutes)
 
 // 헬스 체크
 app.get('/health', (req, res) => {

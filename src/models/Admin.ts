@@ -405,6 +405,89 @@ export const listAdminLibraryItems = async (): Promise<LibraryItemRow[]> => {
   return result.rows
 }
 
+export const createAdminLibraryItem = async (data: {
+  title: string
+  description: string
+  category: string
+  fileType: string
+  fileSize: number
+  downloadUrl?: string | null
+  author?: string | null
+  uploaderId?: number | null
+  thumbnailUrl?: string | null
+}): Promise<LibraryItemRow> => {
+  const result = await query<LibraryItemRow>(
+    `INSERT INTO library_items
+      (title, description, category, file_type, file_size, download_url, author, uploader_id, thumbnail_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     RETURNING
+      id, title, description, category, file_type, file_size, download_url,
+      upload_date, download_count, author, uploader_id, thumbnail_url,
+      (SELECT name FROM users WHERE id = library_items.uploader_id) AS uploader_name`,
+    [
+      data.title,
+      data.description,
+      data.category,
+      data.fileType,
+      data.fileSize,
+      data.downloadUrl ?? null,
+      data.author ?? null,
+      data.uploaderId ?? null,
+      data.thumbnailUrl ?? null,
+    ]
+  )
+  return result.rows[0]
+}
+
+export const updateAdminLibraryItem = async (
+  id: number,
+  data: {
+    title: string
+    description: string
+    category: string
+    fileType: string
+    fileSize: number
+    downloadUrl?: string | null
+    author?: string | null
+    thumbnailUrl?: string | null
+  }
+): Promise<LibraryItemRow | undefined> => {
+  const result = await query<LibraryItemRow>(
+    `UPDATE library_items
+     SET
+      title = $2,
+      description = $3,
+      category = $4,
+      file_type = $5,
+      file_size = $6,
+      download_url = $7,
+      author = $8,
+      thumbnail_url = $9,
+      updated_at = NOW()
+     WHERE id = $1
+     RETURNING
+      id, title, description, category, file_type, file_size, download_url,
+      upload_date, download_count, author, uploader_id, thumbnail_url,
+      (SELECT name FROM users WHERE id = library_items.uploader_id) AS uploader_name`,
+    [
+      id,
+      data.title,
+      data.description,
+      data.category,
+      data.fileType,
+      data.fileSize,
+      data.downloadUrl ?? null,
+      data.author ?? null,
+      data.thumbnailUrl ?? null,
+    ]
+  )
+  return result.rows[0]
+}
+
+export const deleteAdminLibraryItem = async (id: number): Promise<void> => {
+  await query(`DELETE FROM library_items WHERE id = $1`, [id])
+}
+
 export const listAdminContacts = async (): Promise<ContactRow[]> => {
   const result = await query<ContactRow>(
     `SELECT id, name, email, phone, subject, message, user_id, submitted_at, status, answer, answered_at

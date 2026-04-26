@@ -12,6 +12,9 @@ import {
   getAdminStats,
   listAdminContacts,
   listAdminLibraryItems,
+  createAdminLibraryItem,
+  updateAdminLibraryItem,
+  deleteAdminLibraryItem,
   listAdminMemberships,
   listAdminMembershipsByUser,
   listAdminMembershipTypes,
@@ -503,6 +506,116 @@ router.get('/library', async (req, res) => {
   } catch (error) {
     console.error('자료실 목록 조회 오류:', error)
     res.status(500).json({ success: false, message: '자료실 목록 조회 중 오류가 발생했습니다.' })
+  }
+})
+
+router.post('/library', async (req, res) => {
+  try {
+    const { title, description, category, fileType, fileSize, downloadUrl, author, thumbnailUrl } = req.body
+    if (!title || !description || !category || !fileType || fileSize === undefined || fileSize === null) {
+      res.status(400).json({ success: false, message: '필수 항목을 모두 입력해주세요.' })
+      return
+    }
+    const size = Number(fileSize)
+    if (!Number.isFinite(size) || size < 0) {
+      res.status(400).json({ success: false, message: '파일 크기는 0 이상의 숫자여야 합니다.' })
+      return
+    }
+    const item = await createAdminLibraryItem({
+      title: String(title).trim(),
+      description: String(description).trim(),
+      category: String(category).trim(),
+      fileType: String(fileType).trim(),
+      fileSize: size,
+      downloadUrl: downloadUrl ? String(downloadUrl).trim() : null,
+      author: author ? String(author).trim() : null,
+      uploaderId: req.user?.userId ?? null,
+      thumbnailUrl: thumbnailUrl ? String(thumbnailUrl).trim() : null,
+    })
+    res.status(201).json({
+      success: true,
+      message: '자료가 등록되었습니다.',
+      data: {
+        id: String(item.id),
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        fileType: item.file_type,
+        fileSize: Number(item.file_size),
+        downloadUrl: item.download_url ?? undefined,
+        uploadDate: item.upload_date,
+        downloadCount: item.download_count,
+        author: item.author ?? undefined,
+        uploaderId: item.uploader_id ? String(item.uploader_id) : undefined,
+        uploaderName: item.uploader_name ?? undefined,
+        thumbnailUrl: item.thumbnail_url ?? undefined,
+      },
+    })
+  } catch (error) {
+    console.error('자료 등록 오류:', error)
+    res.status(500).json({ success: false, message: '자료 등록 중 오류가 발생했습니다.' })
+  }
+})
+
+router.put('/library/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const { title, description, category, fileType, fileSize, downloadUrl, author, thumbnailUrl } = req.body
+    if (!title || !description || !category || !fileType || fileSize === undefined || fileSize === null) {
+      res.status(400).json({ success: false, message: '필수 항목을 모두 입력해주세요.' })
+      return
+    }
+    const size = Number(fileSize)
+    if (!Number.isFinite(size) || size < 0) {
+      res.status(400).json({ success: false, message: '파일 크기는 0 이상의 숫자여야 합니다.' })
+      return
+    }
+    const updated = await updateAdminLibraryItem(id, {
+      title: String(title).trim(),
+      description: String(description).trim(),
+      category: String(category).trim(),
+      fileType: String(fileType).trim(),
+      fileSize: size,
+      downloadUrl: downloadUrl ? String(downloadUrl).trim() : null,
+      author: author ? String(author).trim() : null,
+      thumbnailUrl: thumbnailUrl ? String(thumbnailUrl).trim() : null,
+    })
+    if (!updated) {
+      res.status(404).json({ success: false, message: '자료를 찾을 수 없습니다.' })
+      return
+    }
+    res.json({
+      success: true,
+      message: '자료가 수정되었습니다.',
+      data: {
+        id: String(updated.id),
+        title: updated.title,
+        description: updated.description,
+        category: updated.category,
+        fileType: updated.file_type,
+        fileSize: Number(updated.file_size),
+        downloadUrl: updated.download_url ?? undefined,
+        uploadDate: updated.upload_date,
+        downloadCount: updated.download_count,
+        author: updated.author ?? undefined,
+        uploaderId: updated.uploader_id ? String(updated.uploader_id) : undefined,
+        uploaderName: updated.uploader_name ?? undefined,
+        thumbnailUrl: updated.thumbnail_url ?? undefined,
+      },
+    })
+  } catch (error) {
+    console.error('자료 수정 오류:', error)
+    res.status(500).json({ success: false, message: '자료 수정 중 오류가 발생했습니다.' })
+  }
+})
+
+router.delete('/library/:id', async (req, res) => {
+  try {
+    await deleteAdminLibraryItem(Number(req.params.id))
+    res.json({ success: true, message: '자료가 삭제되었습니다.' })
+  } catch (error) {
+    console.error('자료 삭제 오류:', error)
+    res.status(500).json({ success: false, message: '자료 삭제 중 오류가 발생했습니다.' })
   }
 })
 
