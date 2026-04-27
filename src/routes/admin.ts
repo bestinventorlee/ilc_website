@@ -9,10 +9,12 @@ import {
   createAdminMembership,
   createAdminMembershipType,
   createAdminNotice,
+  createTokenTransfer,
   deleteAdminMembership,
   deleteAdminMembershipType,
   deleteAdminPost,
   getAdminStats,
+  listTokenTransfers,
   listAdminContacts,
   listAdminLibraryItems,
   createAdminLibraryItem,
@@ -25,10 +27,15 @@ import {
   listAdminUsers,
   getSiteContent,
   upsertSiteContent,
+  updateAdminUserTokenBalance,
+  updateAdminUserWalletAddress,
   updateAdminMembership,
   updateAdminMembershipType,
   updateAdminPost,
+  listTokenTransfersByUser,
 } from '../models/Admin.js'
+import { findUserById } from '../models/User.js'
+import { sendTokenToWallet, getTokenTransferConfig } from '../services/tokenTransfer.js'
 
 const router = express.Router()
 const uploadDir = path.resolve(process.cwd(), 'uploads', 'library')
@@ -108,6 +115,8 @@ router.get('/users', async (req, res) => {
         name: user.name,
         username: user.username,
         email: user.email || '',
+        tokenBalance: user.token_balance,
+        walletAddress: user.wallet_address ?? '',
         role: user.role,
         createdAt: user.created_at,
         lastLoginAt: user.last_login_at ?? undefined,
@@ -116,6 +125,174 @@ router.get('/users', async (req, res) => {
   } catch (error) {
     console.error('회원 목록 조회 오류:', error)
     res.status(500).json({ success: false, message: '회원 목록 조회 중 오류가 발생했습니다.' })
+  }
+})
+
+router.put('/users/:id/wallet-address', async (req, res) => {
+  try {
+    const userId = Number(req.params.id)
+    const walletAddress = String(req.body?.walletAddress || '').trim()
+    if (!Number.isFinite(userId) || userId <= 0) {
+      res.status(400).json({ success: false, message: '잘못된 회원 ID입니다.' })
+      return
+    }
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      res.status(400).json({ success: false, message: '유효한 지갑 주소를 입력해주세요.' })
+      return
+    }
+    const updated = await updateAdminUserWalletAddress(userId, walletAddress)
+    if (!updated) {
+      res.status(404).json({ success: false, message: '회원을 찾을 수 없습니다.' })
+      return
+    }
+    res.json({
+      success: true,
+      message: '회원 지갑 주소가 수정되었습니다.',
+      data: {
+        id: String(updated.id),
+        name: updated.name,
+        username: updated.username,
+        email: updated.email || '',
+        tokenBalance: updated.token_balance,
+        walletAddress: updated.wallet_address ?? '',
+        role: updated.role,
+        createdAt: updated.created_at,
+        lastLoginAt: updated.last_login_at ?? undefined,
+      },
+    })
+  } catch (error) {
+    console.error('회원 지갑 주소 수정 오류:', error)
+    res.status(500).json({ success: false, message: '회원 지갑 주소 수정 중 오류가 발생했습니다.' })
+  }
+})
+
+router.get('/token-transfers', async (_req, res) => {
+  try {
+    const rows = await listTokenTransfers()
+    res.json({
+      success: true,
+      message: '토큰 전송 이력을 조회했습니다.',
+      data: rows.map((row) => ({
+        id: String(row.id),
+        userId: String(row.user_id),
+        userName: row.user_name,
+        username: row.user_username ?? undefined,
+        walletAddress: row.wallet_address,
+        amount: row.amount,
+        tokenSymbol: row.token_symbol,
+        txHash: row.tx_hash ?? undefined,
+        status: row.status,
+        errorMessage: row.error_message ?? undefined,
+        createdAt: row.created_at,
+      })),
+      config: getTokenTransferConfig(),
+    })
+  } catch (error) {
+    console.error('토큰 전송 이력 조회 오류:', error)
+    res.status(500).json({ success: false, message: '토큰 전송 이력 조회 중 오류가 발생했습니다.' })
+  }
+})
+
+router.post('/token-transfers', async (req, res) => {
+  try {
+    const userId = Number(req.body?.userId)
+    const amount = String(req.body?.amount || '').trim()
+    if (!Number.isFinite(userId) || userId <= 0) {
+      res.status(400).json({ success: false, message: '잘못된 회원 ID입니다.' })
+      return
+    }
+    if (!/^\d+(\.\d+)?$/.test(amount) || Number(amount) <= 0) {
+      res.status(400).json({ success: false, message: '토큰 수량은 0보다 커야 합니다.' })
+      return
+    }
+    const user = await findUserById(userId)
+    if (!user) {
+      res.status(404).json({ success: false, message: '회원을 찾을 수 없습니다.' })
+      return
+    }
+    if (!user.wallet_address) {
+      res.status(400).json({ success: false, message: '회원의 지갑 주소가 등록되어 있지 않습니다.' })
+      return
+    }
+
+    const tokenSymbol = process.env.TOKEN_SYMBOL || 'ILC'
+    try {
+      const txHash = await sendTokenToWallet(user.wallet_address, amount)
+      const transfer = await createTokenTransfer({
+        userId,
+        walletAddress: user.wallet_address,
+        amount,
+        tokenSymbol,
+        status: 'success',
+        txHash,
+        sentBy: req.user?.userId ?? null,
+      })
+      res.status(201).json({
+        success: true,
+        message: '토큰 전송이 완료되었습니다.',
+        data: {
+          id: String(transfer.id),
+          txHash: transfer.tx_hash ?? undefined,
+          status: transfer.status,
+        },
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '전송 실패'
+      const transfer = await createTokenTransfer({
+        userId,
+        walletAddress: user.wallet_address,
+        amount,
+        tokenSymbol,
+        status: 'failed',
+        errorMessage: message,
+        sentBy: req.user?.userId ?? null,
+      })
+      res.status(500).json({
+        success: false,
+        message: `토큰 전송 실패: ${message}`,
+        data: { id: String(transfer.id), status: transfer.status },
+      })
+    }
+  } catch (error) {
+    console.error('토큰 전송 오류:', error)
+    res.status(500).json({ success: false, message: '토큰 전송 중 오류가 발생했습니다.' })
+  }
+})
+
+router.put('/users/:id/token-balance', async (req, res) => {
+  try {
+    const userId = Number(req.params.id)
+    const tokenBalance = Number(req.body?.tokenBalance)
+    if (!Number.isFinite(userId) || userId <= 0) {
+      res.status(400).json({ success: false, message: '잘못된 회원 ID입니다.' })
+      return
+    }
+    if (!Number.isFinite(tokenBalance) || tokenBalance < 0) {
+      res.status(400).json({ success: false, message: '토큰 수량은 0 이상의 숫자여야 합니다.' })
+      return
+    }
+    const updated = await updateAdminUserTokenBalance(userId, Math.floor(tokenBalance))
+    if (!updated) {
+      res.status(404).json({ success: false, message: '회원을 찾을 수 없습니다.' })
+      return
+    }
+    res.json({
+      success: true,
+      message: '회원 토큰 수량이 수정되었습니다.',
+      data: {
+        id: String(updated.id),
+        name: updated.name,
+        username: updated.username,
+        email: updated.email || '',
+        tokenBalance: updated.token_balance,
+        role: updated.role,
+        createdAt: updated.created_at,
+        lastLoginAt: updated.last_login_at ?? undefined,
+      },
+    })
+  } catch (error) {
+    console.error('회원 토큰 수량 수정 오류:', error)
+    res.status(500).json({ success: false, message: '회원 토큰 수량 수정 중 오류가 발생했습니다.' })
   }
 })
 

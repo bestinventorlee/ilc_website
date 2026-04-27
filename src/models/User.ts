@@ -6,6 +6,8 @@ export interface User {
   name: string
   username: string
   email: string | null
+  token_balance: number
+  wallet_address: string | null
   password: string
   role: 'admin' | 'user'
   last_login_at: string | null
@@ -25,6 +27,8 @@ export interface UserWithoutPassword {
   name: string
   username: string
   email: string | null
+  token_balance: number
+  wallet_address: string | null
   role: 'admin' | 'user'
   last_login_at: string | null
   created_at: string
@@ -36,7 +40,7 @@ export interface UserWithoutPassword {
  */
 export const findUserByEmail = async (email: string): Promise<User | undefined> => {
   const result = await query<User>(
-    `SELECT id, name, username, email, password, role, last_login_at, created_at, updated_at
+    `SELECT id, name, username, email, token_balance, wallet_address, password, role, last_login_at, created_at, updated_at
      FROM users
      WHERE LOWER(email) = LOWER($1)`,
     [email]
@@ -49,7 +53,7 @@ export const findUserByEmail = async (email: string): Promise<User | undefined> 
  */
 export const findUserById = async (id: number): Promise<User | undefined> => {
   const result = await query<User>(
-    `SELECT id, name, username, email, password, role, last_login_at, created_at, updated_at
+    `SELECT id, name, username, email, token_balance, wallet_address, password, role, last_login_at, created_at, updated_at
      FROM users
      WHERE id = $1`,
     [id]
@@ -59,7 +63,7 @@ export const findUserById = async (id: number): Promise<User | undefined> => {
 
 export const listUsers = async (): Promise<UserWithoutPassword[]> => {
   const result = await query<UserWithoutPassword>(
-    `SELECT id, name, username, email, role, last_login_at, created_at, updated_at
+    `SELECT id, name, username, email, token_balance, wallet_address, role, last_login_at, created_at, updated_at
      FROM users
      ORDER BY created_at DESC`
   )
@@ -68,7 +72,7 @@ export const listUsers = async (): Promise<UserWithoutPassword[]> => {
 
 export const findUserByUsername = async (username: string): Promise<User | undefined> => {
   const result = await query<User>(
-    `SELECT id, name, username, email, password, role, last_login_at, created_at, updated_at
+    `SELECT id, name, username, email, token_balance, wallet_address, password, role, last_login_at, created_at, updated_at
      FROM users
      WHERE username = $1`,
     [username]
@@ -81,7 +85,7 @@ export const findUserByNameAndEmail = async (
   email: string
 ): Promise<User | undefined> => {
   const result = await query<User>(
-    `SELECT id, name, username, email, password, role, last_login_at, created_at, updated_at
+    `SELECT id, name, username, email, token_balance, wallet_address, password, role, last_login_at, created_at, updated_at
      FROM users
      WHERE LOWER(name) = LOWER($1) AND LOWER(email) = LOWER($2)
      LIMIT 1`,
@@ -110,8 +114,22 @@ export const createUser = async (data: CreateUserData): Promise<UserWithoutPassw
   const result = await query<UserWithoutPassword>(
     `INSERT INTO users (name, username, email, password, role)
      VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, name, username, email, role, last_login_at, created_at, updated_at`,
+     RETURNING id, name, username, email, token_balance, wallet_address, role, last_login_at, created_at, updated_at`,
     [data.name, data.username, email, hashedPassword, role]
+  )
+  return result.rows[0]
+}
+
+export const updateUserWalletAddress = async (
+  id: number,
+  walletAddress: string
+): Promise<UserWithoutPassword | undefined> => {
+  const result = await query<UserWithoutPassword>(
+    `UPDATE users
+     SET wallet_address = $2, updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, name, username, email, token_balance, wallet_address, role, last_login_at, created_at, updated_at`,
+    [id, walletAddress]
   )
   return result.rows[0]
 }

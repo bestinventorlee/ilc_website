@@ -27,6 +27,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON users (username);
 ALTER TABLE users
   ALTER COLUMN email DROP NOT NULL;
 
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS token_balance INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS wallet_address VARCHAR(120);
+
+CREATE TABLE IF NOT EXISTS token_transfers (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  wallet_address VARCHAR(120) NOT NULL,
+  amount NUMERIC(36, 18) NOT NULL,
+  token_symbol VARCHAR(20) NOT NULL DEFAULT 'ILC',
+  tx_hash VARCHAR(120),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'success', 'failed')),
+  error_message TEXT,
+  sent_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_token_transfers_user_id ON token_transfers (user_id);
+CREATE INDEX IF NOT EXISTS idx_token_transfers_status ON token_transfers (status);
+
 CREATE TABLE IF NOT EXISTS refresh_tokens (
   token VARCHAR(255) PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

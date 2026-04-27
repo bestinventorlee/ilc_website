@@ -1,15 +1,18 @@
 import express from 'express'
+import { authenticateToken } from '../middleware/auth.js'
 import {
   createUser,
   findUserByEmail,
   findUserById,
   findUserByNameAndEmail,
   findUserByUsername,
+  updateUserWalletAddress,
   updateLastLoginAt,
   verifyPassword,
 } from '../models/User.js'
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.js'
 import { deleteRefreshToken, findRefreshToken, saveRefreshToken } from '../models/RefreshToken.js'
+import { listTokenTransfersByUser } from '../models/Admin.js'
 import { authRateLimiter } from '../middleware/security.js'
 
 const router = express.Router()
@@ -192,6 +195,8 @@ router.post('/signup', async (req, res) => {
         username: user.username,
         email: user.email || '',
         name: user.name,
+        tokenBalance: user.token_balance,
+        walletAddress: user.wallet_address || '',
         role: user.role,
         accessToken, // Access Token (15분 만료)
         refreshToken, // Refresh Token (7일 만료)
@@ -263,6 +268,85 @@ router.post('/refresh', async (req, res) => {
       success: false,
       message: '토큰 갱신 중 오류가 발생했습니다.',
     })
+  }
+})
+
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await findUserById(req.user!.userId)
+    if (!user) {
+      res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' })
+      return
+    }
+    res.json({
+      success: true,
+      message: '내 정보를 조회했습니다.',
+      data: {
+        userId: user.id.toString(),
+        username: user.username,
+        email: user.email || '',
+        name: user.name,
+        tokenBalance: user.token_balance,
+        walletAddress: user.wallet_address || '',
+        role: user.role,
+      },
+    })
+  } catch (error) {
+    console.error('내 정보 조회 오류:', error)
+    res.status(500).json({ success: false, message: '내 정보 조회 중 오류가 발생했습니다.' })
+  }
+})
+
+router.put('/wallet-address', authenticateToken, async (req, res) => {
+  try {
+    const walletAddress = String(req.body?.walletAddress || '').trim()
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      res.status(400).json({ success: false, message: '유효한 지갑 주소를 입력해주세요.' })
+      return
+    }
+    const updated = await updateUserWalletAddress(req.user!.userId, walletAddress)
+    if (!updated) {
+      res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' })
+      return
+    }
+    res.json({
+      success: true,
+      message: '지갑 주소가 저장되었습니다.',
+      data: {
+        userId: updated.id.toString(),
+        username: updated.username,
+        email: updated.email || '',
+        name: updated.name,
+        tokenBalance: updated.token_balance,
+        walletAddress: updated.wallet_address || '',
+        role: updated.role,
+      },
+    })
+  } catch (error) {
+    console.error('지갑 주소 저장 오류:', error)
+    res.status(500).json({ success: false, message: '지갑 주소 저장 중 오류가 발생했습니다.' })
+  }
+})
+
+router.get('/me/token-transfers', authenticateToken, async (req, res) => {
+  try {
+    const rows = await listTokenTransfersByUser(req.user!.userId)
+    res.json({
+      success: true,
+      message: '내 토큰 전송 이력을 조회했습니다.',
+      data: rows.map((row) => ({
+        id: String(row.id),
+        amount: row.amount,
+        tokenSymbol: row.token_symbol,
+        txHash: row.tx_hash ?? undefined,
+        status: row.status,
+        errorMessage: row.error_message ?? undefined,
+        createdAt: row.created_at,
+      })),
+    })
+  } catch (error) {
+    console.error('내 토큰 전송 이력 조회 오류:', error)
+    res.status(500).json({ success: false, message: '내 토큰 전송 이력 조회 중 오류가 발생했습니다.' })
   }
 })
 
@@ -350,6 +434,8 @@ router.post('/login', async (req, res) => {
         username: user.username,
         email: user.email || '',
         name: user.name,
+        tokenBalance: user.token_balance,
+        walletAddress: user.wallet_address || '',
         role: user.role,
         accessToken, // Access Token (15분 만료)
         refreshToken, // Refresh Token (15일 만료)

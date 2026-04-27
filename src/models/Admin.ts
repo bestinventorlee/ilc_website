@@ -5,6 +5,8 @@ export interface AdminUserRow {
   name: string
   username: string
   email: string | null
+  token_balance: number
+  wallet_address: string | null
   role: 'admin' | 'user'
   created_at: string
   last_login_at: string | null
@@ -97,6 +99,22 @@ export interface SiteContentRow {
   updated_at: string
 }
 
+export interface TokenTransferRow {
+  id: number
+  user_id: number
+  wallet_address: string
+  amount: string
+  token_symbol: string
+  tx_hash: string | null
+  status: 'pending' | 'success' | 'failed'
+  error_message: string | null
+  sent_by: number | null
+  created_at: string
+  updated_at: string
+  user_name: string
+  user_username: string | null
+}
+
 export const getAdminStats = async (): Promise<{
   totalUsers: number
   totalMemberships: number
@@ -124,9 +142,95 @@ export const getAdminStats = async (): Promise<{
 
 export const listAdminUsers = async (): Promise<AdminUserRow[]> => {
   const result = await query<AdminUserRow>(
-    `SELECT id, name, username, email, role, created_at, last_login_at
+    `SELECT id, name, username, email, token_balance, wallet_address, role, created_at, last_login_at
      FROM users
      ORDER BY created_at DESC`
+  )
+  return result.rows
+}
+
+export const updateAdminUserTokenBalance = async (
+  userId: number,
+  tokenBalance: number
+): Promise<AdminUserRow | undefined> => {
+  const result = await query<AdminUserRow>(
+    `UPDATE users
+     SET token_balance = $2, updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, name, username, email, token_balance, wallet_address, role, created_at, last_login_at`,
+    [userId, tokenBalance]
+  )
+  return result.rows[0]
+}
+
+export const updateAdminUserWalletAddress = async (
+  userId: number,
+  walletAddress: string
+): Promise<AdminUserRow | undefined> => {
+  const result = await query<AdminUserRow>(
+    `UPDATE users
+     SET wallet_address = $2, updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, name, username, email, token_balance, wallet_address, role, created_at, last_login_at`,
+    [userId, walletAddress]
+  )
+  return result.rows[0]
+}
+
+export const createTokenTransfer = async (data: {
+  userId: number
+  walletAddress: string
+  amount: string
+  tokenSymbol: string
+  status: 'pending' | 'success' | 'failed'
+  txHash?: string | null
+  errorMessage?: string | null
+  sentBy?: number | null
+}): Promise<TokenTransferRow> => {
+  const result = await query<TokenTransferRow>(
+    `INSERT INTO token_transfers
+      (user_id, wallet_address, amount, token_symbol, status, tx_hash, error_message, sent_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     RETURNING
+      id, user_id, wallet_address, amount::text, token_symbol, tx_hash, status, error_message, sent_by, created_at::text, updated_at::text,
+      (SELECT name FROM users WHERE id = $1) AS user_name,
+      (SELECT username FROM users WHERE id = $1) AS user_username`,
+    [
+      data.userId,
+      data.walletAddress,
+      data.amount,
+      data.tokenSymbol,
+      data.status,
+      data.txHash ?? null,
+      data.errorMessage ?? null,
+      data.sentBy ?? null,
+    ]
+  )
+  return result.rows[0]
+}
+
+export const listTokenTransfers = async (): Promise<TokenTransferRow[]> => {
+  const result = await query<TokenTransferRow>(
+    `SELECT
+      t.id, t.user_id, t.wallet_address, t.amount::text, t.token_symbol, t.tx_hash, t.status, t.error_message, t.sent_by, t.created_at::text, t.updated_at::text,
+      u.name AS user_name, u.username AS user_username
+     FROM token_transfers t
+     JOIN users u ON u.id = t.user_id
+     ORDER BY t.created_at DESC`
+  )
+  return result.rows
+}
+
+export const listTokenTransfersByUser = async (userId: number): Promise<TokenTransferRow[]> => {
+  const result = await query<TokenTransferRow>(
+    `SELECT
+      t.id, t.user_id, t.wallet_address, t.amount::text, t.token_symbol, t.tx_hash, t.status, t.error_message, t.sent_by, t.created_at::text, t.updated_at::text,
+      u.name AS user_name, u.username AS user_username
+     FROM token_transfers t
+     JOIN users u ON u.id = t.user_id
+     WHERE t.user_id = $1
+     ORDER BY t.created_at DESC`,
+    [userId]
   )
   return result.rows
 }
