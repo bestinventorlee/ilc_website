@@ -120,6 +120,83 @@ export const createUser = async (data: CreateUserData): Promise<UserWithoutPassw
   return result.rows[0]
 }
 
+/**
+ * 같은 이메일을 다른 회원이 쓰는지 확인 (본인 제외)
+ */
+export const findOtherUserByEmail = async (
+  email: string,
+  excludeUserId: number
+): Promise<User | undefined> => {
+  const result = await query<User>(
+    `SELECT id, name, username, email, token_balance, wallet_address, password, role, last_login_at, created_at, updated_at
+     FROM users
+     WHERE LOWER(email) = LOWER($1) AND id <> $2`,
+    [email, excludeUserId]
+  )
+  return result.rows[0]
+}
+
+export const updateUserProfileFields = async (
+  id: number,
+  data: {
+    name?: string
+    email?: string | null
+    passwordHash?: string
+    role?: 'admin' | 'user'
+  }
+): Promise<UserWithoutPassword | undefined> => {
+  const sets: string[] = []
+  const params: unknown[] = []
+  let i = 1
+  if (data.name !== undefined) {
+    sets.push(`name = $${i}`)
+    params.push(data.name.trim())
+    i += 1
+  }
+  if (data.email !== undefined) {
+    sets.push(`email = $${i}`)
+    params.push(data.email)
+    i += 1
+  }
+  if (data.passwordHash !== undefined) {
+    sets.push(`password = $${i}`)
+    params.push(data.passwordHash)
+    i += 1
+  }
+  if (data.role !== undefined) {
+    sets.push(`role = $${i}`)
+    params.push(data.role)
+    i += 1
+  }
+  if (sets.length === 0) {
+    const u = await findUserById(id)
+    if (!u) return undefined
+    return {
+      id: u.id,
+      name: u.name,
+      username: u.username,
+      email: u.email,
+      token_balance: u.token_balance,
+      wallet_address: u.wallet_address,
+      role: u.role,
+      last_login_at: u.last_login_at,
+      created_at: u.created_at,
+      updated_at: u.updated_at,
+    }
+  }
+  sets.push(`updated_at = NOW()`)
+  const idPlaceholder = i
+  params.push(id)
+  const result = await query<UserWithoutPassword>(
+    `UPDATE users
+     SET ${sets.join(', ')}
+     WHERE id = $${idPlaceholder}
+     RETURNING id, name, username, email, token_balance, wallet_address, role, last_login_at, created_at, updated_at`,
+    params
+  )
+  return result.rows[0]
+}
+
 export const updateUserWalletAddress = async (
   id: number,
   walletAddress: string

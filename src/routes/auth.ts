@@ -1,11 +1,14 @@
 import express from 'express'
+import bcrypt from 'bcryptjs'
 import { authenticateToken } from '../middleware/auth.js'
 import {
   createUser,
+  findOtherUserByEmail,
   findUserByEmail,
   findUserById,
   findUserByNameAndEmail,
   findUserByUsername,
+  updateUserProfileFields,
   updateUserWalletAddress,
   updateLastLoginAt,
   verifyPassword,
@@ -268,6 +271,149 @@ router.post('/refresh', async (req, res) => {
       success: false,
       message: '토큰 갱신 중 오류가 발생했습니다.',
     })
+  }
+})
+
+const emailImpliesAdmin = (email: string | null): boolean =>
+  !!email && (email === 'admin@ilc.com' || email.endsWith('@admin.ilc.com'))
+
+/**
+ * 프로필 수정 (아이디(username)는 변경 불가)
+ * PUT /api/auth/profile
+ * Body: { name?, email?, currentPassword?, newPassword?, confirmPassword? }
+ */
+router.put('/profile', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user!.userId
+    const current = await findUserById(userId)
+    if (!current) {
+      res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' })
+      return
+    }
+
+    const body = req.body ?? {}
+    const nameIn = body.name
+    const emailIn = body.email
+    const currentPassword = body.currentPassword
+    const newPassword = body.newPassword
+    const confirmPassword = body.confirmPassword
+
+    const updates: {
+      name?: string
+      email?: string | null
+      passwordHash?: string
+      role?: 'admin' | 'user'
+    } = {}
+
+    if (nameIn !== undefined) {
+      const name = String(nameIn).trim()
+      if (!name) {
+        res.status(400).json({ success: false, message: '이름을 입력해주세요.' })
+        return
+      }
+      updates.name = name
+    }
+
+    if (emailIn !== undefined) {
+      const raw = String(emailIn).trim()
+      if (!raw) {
+        updates.email = null
+      } else {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(raw)) {
+          res.status(400).json({ success: false, message: '올바른 이메일 형식을 입력해주세요.' })
+          return
+        }
+        const other = await findOtherUserByEmail(raw, userId)
+        if (other) {
+          res.status(409).json({ success: false, message: '이미 사용 중인 이메일입니다.' })
+          return
+        }
+        updates.email = raw
+      }
+    }
+
+    const wantsPasswordChange =
+      newPassword !== undefined && String(newPassword).length > 0
+
+    if (wantsPasswordChange) {
+      if (!currentPassword || !String(currentPassword).length) {
+        res.status(400).json({
+          success: false,
+          message: '비밀번호를 변경하려면 현재 비밀번호를 입력해주세요.',
+        })
+        return
+      }
+      const np = String(newPassword)
+      if (np.length < 8) {
+        res.status(400).json({
+          success: false,
+          message: '새 비밀번호는 최소 8자 이상이어야 합니다.',
+        })
+        return
+      }
+      if (confirmPassword !== undefined && String(confirmPassword) !== np) {
+        res.status(400).json({ success: false, message: '새 비밀번호와 확인이 일치하지 않습니다.' })
+        return
+      }
+      const ok = await verifyPassword(String(currentPassword), current.password)
+      if (!ok) {
+        res.status(401).json({ success: false, message: '현재 비밀번호가 올바르지 않습니다.' })
+        return
+      }
+      updates.passwordHash = await bcrypt.hash(np, 10)
+    }
+
+    const effectiveEmail =
+      updates.email !== undefined ? updates.email : current.email
+    if (updates.email !== undefined && emailImpliesAdmin(effectiveEmail)) {
+      updates.role = 'admin'
+    }
+
+    if (
+      updates.name === undefined &&
+      updates.email === undefined &&
+      updates.passwordHash === undefined &&
+      updates.role === undefined
+    ) {
+      res.status(400).json({
+        success: false,
+        message: '변경할 항목을 입력해주세요. (이름, 이메일, 또는 비밀번호)',
+      })
+      return
+    }
+
+    const updated = await updateUserProfileFields(userId, updates)
+    if (!updated) {
+      res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' })
+      return
+    }
+
+    const accessToken = generateAccessToken({
+      userId: updated.id,
+      username: updated.username,
+      email: updated.email ?? undefined,
+      name: updated.name,
+      role: updated.role,
+    })
+
+    res.json({
+      success: true,
+      message: '프로필이 저장되었습니다.',
+      data: {
+        userId: updated.id.toString(),
+        username: updated.username,
+        email: updated.email || '',
+        name: updated.name,
+        tokenBalance: updated.token_balance,
+        walletAddress: updated.wallet_address || '',
+        role: updated.role,
+        accessToken,
+      },
+    })
+  } catch (error) {
+    console.error('프로필 수정 오류:', error)
+    res.status(500).json({ success: false, message: '프로필 저장 중 오류가 발생했습니다.' })
   }
 })
 
